@@ -1,0 +1,84 @@
+version: "3.8"
+services:
+  postgres_ef686c8a89:
+    container_name: postgres_ef686c8a89
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/
+      POSTGRES_READ_USER: ${POSTGRES_READ_USER}
+      POSTGRES_CREATE_USER: ${POSTGRES_CREATE_USER}
+      POSTGRES_UPDATE_USER: ${POSTGRES_UPDATE_USER}
+      POSTGRES_DELETE_USER: ${POSTGRES_DELETE_USER}
+      POSTGRES_CRUD_USER: ${POSTGRES_CRUD_USER}
+      POSTGRES_READ_USER_PASSWORD: ${POSTGRES_READ_USER_PASSWORD}
+      POSTGRES_CREATE_USER_PASSWORD: ${POSTGRES_CREATE_USER_PASSWORD}
+      POSTGRES_UPDATE_USER_PASSWORD: ${POSTGRES_UPDATE_USER_PASSWORD}
+      POSTGRES_DELETE_USER_PASSWORD: ${POSTGRES_DELETE_USER_PASSWORD}
+      POSTGRES_CRUD_USER_PASSWORD: ${POSTGRES_CRUD_USER_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/
+    volumes:
+      - ./database:/var/lib/postgresql/data/
+      - ./data_exports:/var/lib/postgresql/exports/
+      - ./init-development-db.sh:/docker-entrypoint-initdb.d/init-development-db.sh
+      - ./permissions.sh:/docker-entrypoint-initdb.d/permissions.sh
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/var/lib/data/init.sql
+    ports:
+      - "5432"
+    restart: always
+    networks:
+      - backend-network
+
+  webserver:
+    image: nginx:latest
+    container_name: webserver
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "5422:5422"
+    volumes:
+      - ./web-root:/var/www/html
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - ./dhparam:/etc/ssl/certs
+    depends_on:
+      - pgadmin
+    networks:
+      - backend-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - ./web-root:/var/www/html
+    depends_on:
+      - webserver
+    command: certonly --webroot --webroot-path=/var/www/html --email dropgala@gmail.com --agree-tos --no-eff-email --force-renewal -d pgadmin-xyz.dropgala.com
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dropgala@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+    volumes:
+      - ./pgadmin:/root/.pgadmin
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+volumes:
+  certbot-etc:
+  certbot-var:
+
+networks:
+  backend-network:
+    driver: bridge
